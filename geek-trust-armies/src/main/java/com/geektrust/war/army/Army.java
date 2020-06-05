@@ -1,9 +1,6 @@
 package com.geektrust.war.army;
 
-import com.geektrust.war.exception.ProcessingFailedException;
 import com.geektrust.war.exception.WeaponExhaustedException;
-import com.geektrust.war.util.Weapon;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,9 +10,9 @@ public class Army {
 
     private final Map<Weapon, Integer> armoury;
     private final Double strength;
-    private final Double substitutionStrength;
+    private boolean isDefended;
 
-    public Army(Double strength, Double substitutionStrength, Map<Weapon, Integer> armoury){
+    public Army(Double strength, Map<Weapon, Integer> armoury){
         if(null == armoury){
             this.armoury = new HashMap<>();
         }
@@ -23,10 +20,10 @@ public class Army {
             this.armoury = new HashMap<>(armoury);
         }
         this.strength = strength;
-        this.substitutionStrength = substitutionStrength;
+        isDefended = true;
     }
 
-    private class WeaponAllocation {
+    private static class WeaponAllocation {
         public Weapon weapon;
         public Integer requiredCount;
         private Integer pendingCount;
@@ -35,17 +32,19 @@ public class Army {
             this.requiredCount = 0;
             this.pendingCount = actualCount;
         }
-        public boolean utilize(Integer count){
-            if(pendingCount >= count){
-                requiredCount += count;
-                pendingCount -= count;
-                return true;
+        public Integer utilize(Integer count){
+            if (pendingCount >= count) {
+                allocate(count);
+                count = 0;
+            } else {
+                count = count - pendingCount;
+                allocate(pendingCount);
             }
-            return false;
+            return count;
         }
-        public void utilizeAll() {
-            requiredCount += pendingCount;
-            pendingCount = 0;
+        private void allocate(Integer count){
+            requiredCount += count;
+            pendingCount -= count;
         }
     }
 
@@ -53,16 +52,9 @@ public class Army {
         return strength;
     }
 
-    public Double getSubstitutionStrength() {
-        return substitutionStrength;
-    }
-
     public Integer getWeaponCount(Weapon weapon){
-        if(armoury.containsKey(weapon)){
-            return armoury.get(weapon);
-        } else {
-            return 0;
-        }
+        if (!armoury.containsKey(weapon)) return 0;
+        return armoury.get(weapon);
     }
 
     public void updateWeaponCount(Weapon weapon, Integer count){
@@ -74,7 +66,7 @@ public class Army {
     }
 
     public Army deployArmy(Map<Weapon, Integer> armoury) throws WeaponExhaustedException{
-        Army army = new Army(this.strength,this.substitutionStrength,null);
+        Army army = new Army(this.strength,null);
         for(Weapon weapon : armoury.keySet()){
             if(this.getWeaponCount(weapon) >= armoury.get(weapon)){
                 army.updateWeaponCount(weapon,armoury.get(weapon));
@@ -85,76 +77,45 @@ public class Army {
         return army;
     }
 
-    public String defend(Army enemy) throws ProcessingFailedException {
-        String result = "";
-        if( null == enemy ){
-            throw new ProcessingFailedException("Armies not found !");
-        }
-        result = getRequiredWeaponCounts(enemy);
-        return  result;
-    }
-
-    private String getRequiredWeaponCounts(Army enemy){
-        Double strength = this.getStrength()/enemy.getStrength();
-        Double substitutionStrength = this.getSubstitutionStrength();
+    public BattleStatus defend(Army enemy){
         Integer substitutionCount = 0;
-        boolean battleWon = true;
         List<WeaponAllocation> weaponAllocations = new ArrayList<>();
         int index = 0;
         for(Weapon weapon: Weapon.values()){
-            WeaponAllocation weaponAllocation = new WeaponAllocation(weapon,getWeaponCount(weapon));
-            weaponAllocations.add(weaponAllocation);
-            Integer requiredWeaponCount =  (int)Math.ceil(enemy.getWeaponCount(weapon)/strength);
-            if(weaponAllocations.get(index).utilize(requiredWeaponCount)){
-                //Assumes substitutionCount is the count required in current weapon terms.
-                if(substitutionCount > 0){
-                    if(!weaponAllocations.get(index).utilize(substitutionCount)){
-                        battleWon = false;
-                        weaponAllocations.get(index).utilizeAll();
-                    }
-                    substitutionCount = 0;
-                }
-            } else {
-                if(substitutionCount > 0) {
-                    battleWon = false;
-                }
-                substitutionCount = requiredWeaponCount - weaponAllocations.get(index).pendingCount;
-                weaponAllocations.get(index).utilizeAll();
-                if( index-1 >= 0 ){
-                    Integer requirement = (int)Math.ceil(substitutionCount*substitutionStrength);
-                    if(weaponAllocations.get(index-1).utilize((int)Math.ceil(requirement))){
-                        substitutionCount = 0;
-                    } else {
-                        requirement = requirement - weaponAllocations.get(index-1).pendingCount;
-                        weaponAllocations.get(index-1).utilizeAll();
-                        substitutionCount = (int)Math.ceil(requirement/substitutionStrength/substitutionStrength);
-                    }
-                }
-                else {
-                    substitutionCount = (int)Math.ceil(substitutionCount/substitutionStrength);
-                }
-            }
+            weaponAllocations.add(new WeaponAllocation(weapon, getWeaponCount(weapon)));
+            Integer requiredWeaponCount = (int)Math.ceil(enemy.getWeaponCount(weapon)/getStrength());
+            substitutionCount = allocateWeapon(requiredWeaponCount, weaponAllocations,index,substitutionCount);
             index++;
         }
-        if(substitutionCount > 0) {
-            battleWon = false;
-        }
-        return getResultInOutputFormat(battleWon,weaponAllocations);
+        isDefended = substitutionCount == 0;
+        return createBattleStatus(weaponAllocations);
     }
 
-    private String getResultInOutputFormat(boolean battleWon, List<WeaponAllocation> weaponAllocations){
-        StringBuilder resultBuilder = new StringBuilder();
-        if(battleWon){
-            resultBuilder.append("WINS");
+    private Integer allocateWeapon(Integer requiredWeaponCount, List<WeaponAllocation> weaponAllocations, Integer index, Integer substitutionCount){
+        requiredWeaponCount = weaponAllocations.get(index).utilize(requiredWeaponCount);
+        if(requiredWeaponCount > 0){
+            if(substitutionCount > 0)  isDefended = false;
+            substitutionCount = utilizeLowerWeapon(weaponAllocations, index, requiredWeaponCount);
         } else {
-            resultBuilder.append("LOSES");
+            if (substitutionCount > 0 && weaponAllocations.get(index).utilize(substitutionCount) != 0) isDefended = false;
+            substitutionCount = 0;
         }
-
-        resultBuilder.append(" ").append(weaponAllocations.get(0).requiredCount).append("H");
-        resultBuilder.append(" ").append(weaponAllocations.get(1).requiredCount).append("E");
-        resultBuilder.append(" ").append(weaponAllocations.get(2).requiredCount).append("AT");
-        resultBuilder.append(" ").append(weaponAllocations.get(3).requiredCount).append("SG");
-        return resultBuilder.toString();
+        return  substitutionCount;
     }
 
+    private Integer utilizeLowerWeapon(List<WeaponAllocation> weaponAllocations, Integer index,Integer substitutionCount){
+        if (index - 1 >= 0) {
+            substitutionCount = (int)Math.ceil(substitutionCount*getStrength());
+            substitutionCount = weaponAllocations.get(index - 1).utilize(substitutionCount);
+            return (int)Math.ceil(substitutionCount/getStrength()/getStrength());
+        }
+        return (int)Math.ceil(substitutionCount/getStrength());
+    }
+
+    private BattleStatus createBattleStatus(List<WeaponAllocation> weaponAllocations){
+        Map<Weapon, Integer> armoury = new HashMap<>();
+        for(WeaponAllocation allocation : weaponAllocations)
+            armoury.put(allocation.weapon,allocation.requiredCount);
+        return new BattleStatus(isDefended,armoury);
+    }
 }

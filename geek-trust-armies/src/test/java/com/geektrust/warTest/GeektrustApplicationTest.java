@@ -1,9 +1,8 @@
 package com.geektrust.warTest;
 
 import com.geektrust.war.army.Army;
-import com.geektrust.war.planet.Planet;
-import com.geektrust.war.util.ArmouryBuilder;
-import com.geektrust.war.util.Weapon;
+import com.geektrust.war.army.ArmouryBuilder;
+import com.geektrust.war.army.Weapon;
 
 import java.util.Map;
 import org.junit.Test;
@@ -33,12 +32,11 @@ public class GeektrustApplicationTest {
     public String resultString;
 
     public static Map<Weapon, Integer> lengaburuArmoury = ArmouryBuilder.createArmoury(100,50,10,5);
-    public static Army lengaburuArmy = new Army(2.0,2.0,lengaburuArmoury);
-    public static Planet lengaburu = new Planet("Lengaburu",lengaburuArmy);
+    public static Army lengaburuArmy = new Army(2.0,lengaburuArmoury);
 
     public static Map<Weapon, Integer> falcorinaArmoury = ArmouryBuilder.createArmoury(300,200,40,20);
-    public static Army falcorinaArmy = new Army(1.0,0.0,falcorinaArmoury);
-    Planet falcorina = new Planet("Falcorina",falcorinaArmy);
+    public static Army falcorinaArmy = new Army(1.0,falcorinaArmoury);
+
 
     @Parameters
     public static Collection<Object[]> data() {
@@ -51,7 +49,7 @@ public class GeektrustApplicationTest {
     @Test
     public void testWarResult()  throws Exception{
         Map<Weapon, Integer> armoury = ArmouryBuilder.createArmoury(horseCount,elephantCount,tankCount,gunCount);
-        Army deployedArmy = falcorina.getArmy().deployArmy(armoury);
-        assertEquals("Result", resultString, lengaburu.getArmy().defend(deployedArmy));
+        Army deployedArmy = falcorinaArmy.deployArmy(armoury);
+        assertEquals("Result", resultString, lengaburuArmy.defend(deployedArmy).getResultString());
     }
 }
