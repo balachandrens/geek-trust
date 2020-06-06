@@ -11,6 +11,15 @@ public class BattleStatus {
         this.armoury = armoury;
     }
 
+    public boolean isDefended() {
+        return isDefended;
+    }
+
+    public Integer getWeaponCount(Weapon weapon){
+        if (!armoury.containsKey(weapon)) return 0;
+        return armoury.get(weapon);
+    }
+
     public String getResultString(){
         return (isDefended ? "WINS" : "LOSES") +
                 " " + armoury.get(Weapon.HORSE) + "H" +

@@ -21,7 +21,7 @@ public class InputProcessor {
         falcorinaArmy = new Army(1.0,falcorinaArmoury);
     }
 
-    public static Map<Weapon,Integer> createArmouryFromInput(String[] input){
+    private static Map<Weapon,Integer> createArmouryFromInput(String[] input){
         Integer horseCount = Integer.valueOf(input[1].substring(0,input[1].length()-1));
         Integer elephantCount = Integer.valueOf(input[2].substring(0,input[2].length()-1));
         Integer tankCount = Integer.valueOf(input[3].substring(0,input[3].length()-2));
@@ -29,7 +29,7 @@ public class InputProcessor {
         return ArmouryBuilder.createArmoury(horseCount,elephantCount,tankCount,gunCount);
     }
 
-    public static void processInputString(String[] input) {
+    private static void processInputString(String[] input) {
         try {
             Map<Weapon,Integer> armoury = InputProcessor.createArmouryFromInput(input);
             Army deployedArmy = falcorinaArmy.deployArmy(armoury);
